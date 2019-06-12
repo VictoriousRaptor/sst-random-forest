@@ -24,7 +24,7 @@ def count_freq(sentences):
                 wordfreq[w] += 1
     return wordfreq, wordcount
 
-def count_freq(categories):
+def foo(categories):
     wordfreq, wordcount = [], []
     for category in categories:
         t1, t2 = count_freq(category)
@@ -33,9 +33,6 @@ def count_freq(categories):
     return wordfreq, wordcount
 
 def tfidf(sentence, label_num, cat_len, wordfreq, wordcount):
-    
-    
-
     score = np.zeros(label_num)
     for i, (wf, wc) in enumerate(zip(wordfreq, wordcount)):
         tmp = []
