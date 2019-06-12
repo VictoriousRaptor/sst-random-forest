@@ -15,7 +15,7 @@ train_set = ds.train_set()
 test_set = ds.test_set()
 
 # In[]
-clf = RandomForestClassifier(n_estimators=200, max_depth=10, n_jobs=-1)
+clf = RandomForestClassifier(n_estimators=2000, max_depth=10, n_jobs=-1)
 clf.fit(train_set.features, train_set.labels)
 # res = clf.predict(test_set.features)
 test_acc = clf.score(test_set.features, test_set.labels)
