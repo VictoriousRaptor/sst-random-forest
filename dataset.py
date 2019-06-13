@@ -92,14 +92,6 @@ class SSTDataset():
         self.sets = [holder(len(i)) for i in phrase_dict]
         # print(len(self.sets))
 
-        # 每个句子的label
-        # self.labels = np.zeros((len(phrase_dict),), dtype=np.long)
-
-        # 记录每个句子中单词在glove中的index
-        # self.phrase_vec = []
-
-
-
         if args.feature == 'vector':
             for i, s in enumerate(self.sets):
                 features = []
@@ -111,7 +103,7 @@ class SSTDataset():
                     # 分词
                     for w in p.split(' '):
                         try:
-                            tmp1.append(wordvec.index.get_loc(w))  # 单词w在glove中的index
+                            tmp1.append(args.weight.index.get_loc(w))  # 单词w在glove中的index
                         except KeyError:
                             missing_count += 1
 
@@ -125,8 +117,9 @@ class SSTDataset():
             # 预置的stopwords列表，忽略出现少于10次的单词和出现99%以上的
             # self.tfv = TfidfVectorizer(stop_words='english', min_df=3, max_df=0.99) 
             # self.tfv = TfidfVectorizer(stop_words='english', max_df=0.99) 
-            self.tfv = TfidfVectorizer(stop_words='english') 
-
+            nltk = ["i", "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your", "yours", "yourself", "yourselves", "he", "him", "his", "himself", "she", "her", "hers", "herself", "it", "its", "itself", "they", "them", "their", "theirs", "themselves", "what", "which", "who", "whom", "this", "that", "these", "those", "am", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "having", "do", "does", "did", "doing", "a", "an", "the", "and", "but", "if", "or", "because", "as", "until", "while", "of", "at", "by", "for", "with", "about", "against", "between", "into", "through", "during", "before", "after", "above", "below", "to", "from", "up", "down", "in", "out", "on", "off", "over", "under", "again", "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "s", "t", "can", "will", "just", "don", "should", "now"]
+            self.tfv = TfidfVectorizer(stop_words=None, ngram_range=(1,1),norm=None, min_df=2) 
+            # self.tfv = TfidfVectorizer(stop_words=None, ngram_range=(1,2), max_df=0.1) 
             for i, s in enumerate(self.sets):
                 for j, (idx, p) in enumerate(phrase_dict[i].items()):
                     s.labels[j] = get_class(label_tmp[idx], self.num_classes) # pos i 的句子的label
@@ -138,8 +131,9 @@ class SSTDataset():
                 else:
                     s.features = self.tfv.transform(phrase_dict[i].values())
                 print(s.features.shape)
+
             print(len(self.tfv.vocabulary_))
-            print(len(self.tfv.stop_words))
+            print(self.tfv.stop_words_)
 
 
     def train_set(self):
@@ -223,17 +217,17 @@ class SSTDataset_torch(Dataset):
 
 
 
-#%%
-if __name__ == "__main__":
-    # test
+# #%%
+# if __name__ == "__main__":
+#     # test
 
-    wordvec = loadGloveModel('../midterm/data/glove/glove.6B.'+ str(50) +'d.txt')
+#     wordvec = loadGloveModel('../midterm/data/glove/glove.6B.'+ str(50) +'d.txt')
 
-    # test = SSTDataset('data/dataset/', 'test', 2)
-#%%
-    test_vec = SSTDataset('data/dataset/', 2, 50, wordvec, 'vector')
-    test_tfidf = SSTDataset('data/dataset/', 2, 50, wordvec, 'tfidf')
-    # print(SSTDataset.label_tmp)
+#     # test = SSTDataset('data/dataset/', 'test', 2)
+# #%%
+#     test_vec = SSTDataset('data/dataset/', 2, 50, wordvec, 'vector')
+#     test_tfidf = SSTDataset('data/dataset/', 2, 50, wordvec, 'tfidf')
+#     # print(SSTDataset.label_tmp)
 
 
-#%%
+# #%%

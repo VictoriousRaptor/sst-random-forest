@@ -47,7 +47,7 @@ def collate_fn(data):
 
     return padded, labels
 
-def evaluation(data_iter, model, args):
+def extraction(data_iter, model, args):
     # Evaluating the given model(Extracting features from test set)
     model.eval()
     with torch.no_grad():
@@ -102,6 +102,7 @@ def main():
     parser.add_argument('--model_name', type=str, default='cnn', help='Which model to use')
     parser.add_argument('--kernel_sizes', type=str, default='3,4,5', help='Sizes of kernels used in CNN')
     parser.add_argument('--dataset_path', type=str, default='data/dataset/', help='PATH to dataset')
+    parser.add_argument('--runs', type=int, default=10, help='')
     
     args = parser.parse_args()
     # torch.manual_seed(args.seed)[]
@@ -193,17 +194,26 @@ def main():
     #         best = i + 1
     
     # Random Forest
-    train_features, train_labels = evaluation(training_iter, model, args)  # shuffled so regen labels
-    test_features, test_labels = evaluation(testing_iter, model, args)  # shuffled so regen labels
-    clf = RandomForestClassifier(n_estimators=200, max_depth=10, n_jobs=-1)
+    train_features, train_labels = extraction(training_iter, model, args)  # shuffled so regen labels
+    test_features, test_labels = extraction(testing_iter, model, args)  # shuffled so regen labels
+    best = (0, 0)
+    avg = [0, 0]
+    for i in range(args.runs):
+        # clf = RandomForestClassifier(n_estimators=args.tree_count, n_jobs=-1)
+        clf = RandomForestClassifier(n_estimators=300, max_depth=10, n_jobs=-1, criterion='gini', max_features='auto')
+        clf.fit(train_features, train_labels)
+        train_acc = clf.score(train_features, train_labels)
+        test_acc = clf.score(test_features, test_labels)
+        if test_acc > best[1]:
+            best = (train_acc, test_acc)
+        avg[0] += train_acc
+        avg[1] += test_acc
+        print(i, ' {:.4f}|{:.4f}'.format(train_acc, test_acc))
 
-    clf.fit(train_features, train_labels)
-    
-    # res = clf.predict(test_set.features)
-    train_acc = clf.score(train_features, train_labels)
-    test_acc = clf.score(test_features, test_labels)
-    print(train_acc)
-    print(test_acc)
+    print('best {:.4f}|{:.4f}'.format(best[0], best[1]))
+    print('avg {:.4f}|{:.4f}'.format(avg[0]/args.runs, avg[1]/args.runs))
+    print('\n{:.4f}|{:.4f}|{:.4f}|{:.4f}'.format(best[0], best[1], avg[0]/args.runs, avg[1]/args.runs))
+        
 
 
     # print('best: epoch {}, acc {:.4f}'.format(best, best_acc))
