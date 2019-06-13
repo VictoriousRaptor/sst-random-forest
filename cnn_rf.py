@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim
 import torch.utils.data as data
+from sklearn.ensemble import RandomForestClassifier
 from torch.utils.data import DataLoader, Dataset
 
 # from RCNN import RCNN
@@ -49,21 +50,43 @@ def collate_fn(data):
 def evaluation(data_iter, model, args):
     # Evaluating the given model(Extracting features from test set)
     model.eval()
-    
-    corrects = 0
-    avg_loss = 0
-    # total = 0
-    x = np.zeros((len(model.Ks)*model.kernel_num))
-    for data, label in data_iter:
-        sentences = data.to(args.device, non_blocking=True)
-        labels = label.to(args.device, non_blocking=True)
-        features = model(sentences)
-        # torch.max(logit, 1)[1]: index
-        # corrects += (torch.max(logit, 1)[1].view(labels.size()).data == labels.data).sum().item()
+    with torch.no_grad():
+        # corrects = 0
+        # avg_loss = 0
+        # total = 0
+        if args.model_name == 'cnn':
+            extracted_features = []
+            def hook(module, input, output):
+                # extracted_features = torch.stack((extracted_features, output))
+                # print(type(input))
+                # print(input)
+                extracted_features.append(input[0].cpu().data)
+            handle = model.bn1.register_forward_hook(hook)
+        set_labels = []
+        # x = np.zeros((len(model.Ks)*model.kernel_num))
+        for data, label in data_iter:
+            # assert data.shape[0] == 16
+            set_labels.append(label.cpu().numpy())
+            sentences = data.to(args.device, non_blocking=True)
+            labels = label.to(args.device, non_blocking=True)
+            _ = model(sentences)
+            # torch.max(logit, 1)[1]: index
+            # corrects += (torch.max(logit, 1)[1].view(labels.size()).data == labels.data).sum().item()
 
-    size = len(data_iter.dataset)
-    model.train()
-    return 100.0 * corrects / size
+        # shpe = None
+        # for s in extracted_features:
+        #     if s.shape != shpe:
+        #         print(s.shape)
+        #         shpe = s.shape
+        # for s in set_labels:
+        #     if s.shape != shpe:
+        #         print(s.shape)
+        #         shpe = s.shape
+        # np.hstack(set_labels)
+        # size = len(data_iter.dataset)
+        handle.remove()
+        model.train()
+        return np.vstack(extracted_features), np.hstack(set_labels)
 
 def main():
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -71,7 +94,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
     parser.add_argument('--batch_size', type=int, default=16)
-    parser.add_argument('--epoch', type=int, default=10)
+    parser.add_argument('--epoch', type=int, default=2)
     parser.add_argument('--kernel_num', type=int, default=100, help='Number of each size of kernels used in CNN')
     parser.add_argument('--label_num', type=int, default=2, help='Target label numbers')
     parser.add_argument('--log_interval', type=int, default=100)
@@ -111,6 +134,7 @@ def main():
     # Select model
     if model_name == 'cnn':
         model = TextCNN(args).to(device)
+
     # elif model_name == 'lstm':
     #     model = LSTMClassifier(args).to(device)
     # elif model_name == 'rcnn':
@@ -154,21 +178,35 @@ def main():
             optimizer.step()
 
         # test
-        acc = evaluation(testing_iter, model, args)
-        if acc > best_acc:
-            best_acc = acc
-            # torch.save(model.state_dict(), 'model_{}_{}_{}.ckpt'.format(args.model_name, args.wordvec_dim, args.label_num))
-        test_acc.append(acc)
-        print('test acc {:.4f}'.format(acc))
-        print('train acc {:.4f}'.format(evaluation(training_iter, model, args)))
-    best = 0
-    best_acc = 0
-    for i, a in enumerate(test_acc):
-        if a > best_acc:
-            best_acc = a
-            best = i + 1
+    #     acc = evaluation(testing_iter, model, args)
+    #     if acc > best_acc:
+    #         best_acc = acc
+    #         # torch.save(model.state_dict(), 'model_{}_{}_{}.ckpt'.format(args.model_name, args.wordvec_dim, args.label_num))
+    #     test_acc.append(acc)
+    #     print('test acc {:.4f}'.format(acc))
+    #     print('train acc {:.4f}'.format(evaluation(training_iter, model, args)))
+    # best = 0
+    # best_acc = 0
+    # for i, a in enumerate(test_acc):
+    #     if a > best_acc:
+    #         best_acc = a
+    #         best = i + 1
+    
+    # Random Forest
+    train_features, train_labels = evaluation(training_iter, model, args)  # shuffled so regen labels
+    test_features, test_labels = evaluation(testing_iter, model, args)  # shuffled so regen labels
+    clf = RandomForestClassifier(n_estimators=200, max_depth=10, n_jobs=-1)
 
-    print('best: epoch {}, acc {:.4f}'.format(best, best_acc))
+    clf.fit(train_features, train_labels)
+    
+    # res = clf.predict(test_set.features)
+    train_acc = clf.score(train_features, train_labels)
+    test_acc = clf.score(test_features, test_labels)
+    print(train_acc)
+    print(test_acc)
+
+
+    # print('best: epoch {}, acc {:.4f}'.format(best, best_acc))
 
     print("Parameters:")
     delattr(args, 'weight')

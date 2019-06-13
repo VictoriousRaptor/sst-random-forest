@@ -1,3 +1,4 @@
+#%%
 import re
 import time
 
@@ -11,23 +12,23 @@ from torch.utils.data import Dataset, TensorDataset
 
 from tfidf import *
 
-
+#%%
 def clean_data(sentence):
     # From yoonkim: https://github.com/yoonkim/CNN_sentence/blob/master/process_data.py
     sentence = re.sub(r"[^A-Za-z0-9(),!?\'\`]", " ", sentence)
     sentence = re.sub(r"\s{2,}", " ", sentence)
     return sentence.strip().lower()
 
-
+#%%
 def get_class(sentiment, num_classes):
     # 根据sentiment value 返回一个label
     return int(sentiment * (num_classes - 0.001))
 
-
+#%%
 def loadGloveModel(gloveFile):
     glove = pd.read_csv(gloveFile, sep=' ', header=None, encoding='utf-8', index_col=0, na_values=None, keep_default_na=False, quoting=3)
     return glove  # (word, embedding), 400k*dim
-
+#%%
 class holder(object):
     def __init__(self, length):
         self.labels = np.zeros((length,), dtype=np.long)
@@ -42,29 +43,29 @@ class holder(object):
 
     def __len__(self):
         return len(self.features)
-
+#%%
 class SSTDataset():
 
-    def __init__(self, path_to_dataset, num_classes, wordvec_dim, wordvec:pd.DataFrame, mode='vector'):
-        """[summary]
+    def __init__(self, path_to_dataset, num_classes, wordvec_dim, args):
+        """
 
         Parameters
         ----------
         path_to_dataset : str
             PATH to SST dataset
+
         num_classes : int
             2 or 5
+
         wordvec_dim : int
             GloVe dim
+
         wordvec : pd.DataFrame
             GloVe embedding
+
         mode : str, optional
             What kind of feature to use, 'vector' or 'tfidf', by default 'vector'
 
-        Returns
-        -------
-        [type]
-            [description]
         """
         set_names = ['train', 'dev', 'test']
         phrase_ids = []
@@ -99,7 +100,7 @@ class SSTDataset():
 
 
 
-        if mode == 'vector':
+        if args.feature == 'vector':
             for i, s in enumerate(self.sets):
                 features = []
 
@@ -115,13 +116,17 @@ class SSTDataset():
                             missing_count += 1
 
                     # self.phrase_vec.append(np.array(tmp1, dtype=np.long))  # 包含句子中每个词的glove index
-                    features.append(np.average(np.array([wordvec.iloc[j, :] for j in tmp1]), axis=0))
+                    features.append(np.average(np.array([args.weight.iloc[j, :] for j in tmp1]), axis=0))
                     s.labels[i] = get_class(label_tmp[idx], self.num_classes) # pos i 的句子的label
                     
                 s.features = np.array(features)
 
-        elif mode == 'tfidf':
-            tfv = TfidfVectorizer()
+        elif args.feature == 'tfidf':
+            # 预置的stopwords列表，忽略出现少于10次的单词和出现99%以上的
+            # self.tfv = TfidfVectorizer(stop_words='english', min_df=3, max_df=0.99) 
+            # self.tfv = TfidfVectorizer(stop_words='english', max_df=0.99) 
+            self.tfv = TfidfVectorizer(stop_words='english') 
+
             for i, s in enumerate(self.sets):
                 for j, (idx, p) in enumerate(phrase_dict[i].items()):
                     s.labels[j] = get_class(label_tmp[idx], self.num_classes) # pos i 的句子的label
@@ -129,11 +134,12 @@ class SSTDataset():
                 if i == 0:
                     # train
                     # s.features = tfv.fit_transform(phrase_dict[i].values()) # TODO:不太对，这是句子每个词的tfidf
-                    s.features = tfv.fit_transform(phrase_dict[i].values())
+                    s.features = self.tfv.fit_transform(phrase_dict[i].values())
                 else:
-                    s.features = tfv.transform(phrase_dict[i].values())
+                    s.features = self.tfv.transform(phrase_dict[i].values())
                 print(s.features.shape)
-            print(len(tfv.vocabulary_))
+            print(len(self.tfv.vocabulary_))
+            print(len(self.tfv.stop_words))
 
 
     def train_set(self):
@@ -145,7 +151,7 @@ class SSTDataset():
     def test_set(self):
         return self.sets[2]
 
-
+#%%
 class SSTDataset_torch(Dataset):
     label_tmp = None
 
@@ -217,10 +223,17 @@ class SSTDataset_torch(Dataset):
 
 
 
-
+#%%
 if __name__ == "__main__":
     # test
+
     wordvec = loadGloveModel('../midterm/data/glove/glove.6B.'+ str(50) +'d.txt')
+
     # test = SSTDataset('data/dataset/', 'test', 2)
-    test2 = SSTDataset('data/dataset/', 'test', 2, 50, wordvec)
+#%%
+    test_vec = SSTDataset('data/dataset/', 2, 50, wordvec, 'vector')
+    test_tfidf = SSTDataset('data/dataset/', 2, 50, wordvec, 'tfidf')
     # print(SSTDataset.label_tmp)
+
+
+#%%
