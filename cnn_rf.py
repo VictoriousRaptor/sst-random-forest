@@ -13,7 +13,7 @@ import torch.utils.data as data
 from sklearn.ensemble import RandomForestClassifier
 from torch.utils.data import DataLoader, Dataset
 
-# from RCNN import RCNN
+from RCNN import RCNN
 # from RNN import myRNN, LSTMClassifier
 from dataset import SSTDataset_torch, loadGloveModel
 from TextCNN import TextCNN
@@ -54,14 +54,15 @@ def extraction(data_iter, model, args):
         # corrects = 0
         # avg_loss = 0
         # total = 0
+        extracted_features = []
+
+        def hook(module, input, output):
+            extracted_features.append(input[0].cpu().data)
+
         if args.model_name == 'cnn':
-            extracted_features = []
-            def hook(module, input, output):
-                # extracted_features = torch.stack((extracted_features, output))
-                # print(type(input))
-                # print(input)
-                extracted_features.append(input[0].cpu().data)
             handle = model.bn1.register_forward_hook(hook)
+        elif args.model_name == 'rcnn':
+            handle = model.fc.register_forward_hook(hook)
         set_labels = []
         # x = np.zeros((len(model.Ks)*model.kernel_num))
         for data, label in data_iter:
@@ -135,11 +136,10 @@ def main():
     # Select model
     if model_name == 'cnn':
         model = TextCNN(args).to(device)
-
     # elif model_name == 'lstm':
     #     model = LSTMClassifier(args).to(device)
-    # elif model_name == 'rcnn':
-    #     model = RCNN(args).to(device)
+    elif model_name == 'rcnn':
+        model = RCNN(args).to(device)
     # elif model_name == 'rnn':
     #     model = myRNN(args).to(device)
     else:
