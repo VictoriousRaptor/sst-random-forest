@@ -22,16 +22,16 @@ from TextCNN import TextCNN
 def collate_fn(data):
     """Pad data in a batch. 
     处理batch，把batch里面的tensor补到这个batch中最长的。
-    
+
     Parameters
     ----------
     data : list((tensor, int), )
         data and label in a batch
-    
+
     Returns
     -------
     tuple(tensor, tensor)
-        
+    
     """
     # data: [(tensor, label), ...]
     max_len = max([i[0].shape[0] for i in data])
@@ -155,7 +155,7 @@ def main():
     loss_sum = 0
     # Train
     test_acc = []
-    best_acc = 0
+    # best_acc = 0
     for epoch in range(1, args.epoch+1):
         for data, label in training_iter:
             sentences = data.to(device, non_blocking=True)  # Asynchronous loading
