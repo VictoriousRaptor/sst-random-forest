@@ -3,25 +3,30 @@ import argparse
 
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import confusion_matrix
 
 import dataset
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset_path', type=str, default='data/dataset/', help='PATH to dataset')
-parser.add_argument('--feature', type=str, default='tfidf', choices=['tfidf', 'vector'])
-parser.add_argument('--tree_count', type=int, default=2000, help='Number of trees in the forest')
-parser.add_argument('--tree_depth', type=int, default=10, help='Max depth of a single tree')
-parser.add_argument('--runs', type=int, default=10, help='')
+parser.add_argument('--feature', type=str, default='tfidf', choices=['tfidf', 'vector'], help='Which kind of feature to use')
+parser.add_argument('--tree_count', type=int, default=300, help='Number of trees in the forest')
+parser.add_argument('--tree_depth', type=int, default=64, help='Max depth of a single tree')
+parser.add_argument('--runs', type=int, default=10, help='Number of forests')
 
 args = parser.parse_args()
 
 # In[]
-wordvec = dataset.loadGloveModel('../midterm/data/glove/glove.6B.'+ str(50) +'d.txt')
-args.weight = wordvec
+if args.feature == 'vector':
+    wordvec = dataset.loadGloveModel('../midterm/data/glove/glove.6B.'+ str(50) +'d.txt')
+    args.weight = wordvec
 
 # In[]
 ds = dataset.SSTDataset(args.dataset_path, 2, 50, args)
+
+if args.feature == 'vector':
+    delattr(args, 'weight')
 
 train_set = ds.train_set()
 test_set = ds.test_set()
@@ -40,13 +45,15 @@ for i in range(args.runs):
     avg[0] += train_acc
     avg[1] += test_acc
     print(i, ' {:.4f}|{:.4f}'.format(train_acc, test_acc))
+    test_prediction = clf.predict(test_set.features)
+    print(confusion_matrix(test_set.labels, test_prediction))
 
 print('best {:.4f}|{:.4f}'.format(best[0], best[1]))
 print('avg {:.4f}|{:.4f}'.format(avg[0]/args.runs, avg[1]/args.runs))
 print('\n{:.4f}|{:.4f}|{:.4f}|{:.4f}'.format(best[0], best[1], avg[0]/args.runs, avg[1]/args.runs))
 
 print("Parameters:")
-delattr(args, 'weight')
+
 for attr, value in sorted(args.__dict__.items()):
     print("\t{}={}".format(attr.upper(), value))
 
