@@ -58,7 +58,7 @@ class desTree():
 
     def split_attributes(self, cur_samples, cur_attrs):
         size = len(cur_samples)
-        best_split = None
+        best_split = tuple()
         best_crit = -1*float("inf")  # 当前最大基尼系数
         best_attribute = -1
         best_threshold = None
@@ -77,7 +77,7 @@ class desTree():
                         best_crit = crit
                         best_attribute = attr
         
-        return best_attribute, best_threshold, (cur_samples[best_split[0]], cur_samples[best_split[1]])  # 阈值，(小于, 大于)
+        return best_attribute, best_threshold, (cur_samples[best_split[0]], cur_samples[best_split[1]]) if len(best_split) != 0 else tuple()  # 阈值，(小于, 大于)
 
 
     def recursive_grow(self, cur_depth, cur_samples, cur_attrs):
@@ -90,12 +90,16 @@ class desTree():
         else:
             cur_attrs = self.sel_attributes()  # 随机选择特征
             best_attr, thresh, split = self.split_attributes(cur_samples, cur_attrs)
+            if len(split) == 0:
+                # 没切出来东西
+                return Node(True, -1, None, np.bincount(self.labels[cur_samples]).argmax())
             node = Node(False, best_attr, thresh)
             node.children = [self.recursive_grow(cur_depth+1, s, self.sel_attributes()) for s in split]
             return node
     
     def find(self, sample):
-        return recursive_find(self.root, sample)
+        # TODO:一批样本的处理
+        return self.recursive_find(self.root, sample)
 
     
     def recursive_find(self, node:Node, sample):
