@@ -132,8 +132,8 @@ class SSTDataset():
                     s.features = self.tfv.transform(phrase_dict[i].values())
                 print(s.features.shape)
 
-            print(len(self.tfv.vocabulary_))
-            print(self.tfv.stop_words_)
+            print('vocab:', len(self.tfv.vocabulary_))
+            print('rare words:', len(self.tfv.stop_words_))
 
 
     def train_set(self):

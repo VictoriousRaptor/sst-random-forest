@@ -3,6 +3,7 @@ import random
 import math
 from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
+from numba import jit
 
 
 class Node():
@@ -34,7 +35,7 @@ class desTree():
                 # return np.random.randint(0, self.features.shape[1], size=np.ceil(np.log2(self.features.shape[1])))
                 return np.random.choice(self.features.shape[1], size=int(np.ceil(np.log2(self.features.shape[1]))), replace=False)  # 不放回选择
         self.sel_attributes = sel_attributes
-        self.root = self.recursive_grow(0, np.random.choice(self.features.shape[0], self.features.shape[0], replace=False), self.sel_attributes())
+        self.root = self.recursive_grow(0, np.arange(self.features.shape[0], dtype=np.long), self.sel_attributes())
         del self.labels
         del self.features
 
@@ -130,12 +131,15 @@ class RandomForest():
         self.tree_count = tree_count
         self.tree_depth = tree_depth
 
+    # @jit
     def grow(self, features, labels):
-        num_samples = features.shape[0]
+        # num_samples = features.shape[0]
         for tree in self.trees:
             # Bagging
-            indice = np.random.choice(num_samples, size=num_samples, replace=True)
+            indice = np.random.choice(features.shape[0], size=features.shape[0], replace=True)
             tree.grow(features[indice, :], labels[indice])
+            # print(np.sum(tree.classify(features[indice, :]) == labels[indice]) / labels[indice].shape[0])
+
 
     def classify(self, features):
         candidates = np.array([tree.classify(features) for tree in self.trees])
@@ -143,8 +147,12 @@ class RandomForest():
         for i in range(candidates.shape[1]):
             vote = candidates[:, i]
             unique, counts = np.unique(vote, return_counts=True)
-            result[1] = unique[counts.argmax()]
+            result[i] = unique[counts.argmax()]
         return result
+
+    def score(self, features, labels):
+        result = self.classify(features)
+        return np.sum(result == labels) / labels.shape[0]
 
         
             
@@ -152,7 +160,15 @@ class RandomForest():
 if __name__ == "__main__":
     iris = load_iris(True)
     X_train, X_test, y_train, y_test = train_test_split(iris[0], iris[1], test_size=0.33, random_state=7)
-    forest = RandomForest(3, 100, 10)
+    tree = desTree(5, 3)
+    tree.grow(X_train, y_train)
+    print(np.sum(tree.classify(X_train) == y_train) / y_train.shape[0])
+    print(np.sum(tree.classify(X_test) == y_test) / y_test.shape[0])
+    forest = RandomForest(3, 100, 5)
     forest.grow(X_train, y_train)
-    print(np.sum(forest.classify(X_train) == y_train) / y_train.shape[0])
-    print(np.sum(forest.classify(X_test) == y_test) / y_test.shape[0])
+    print(forest.score(X_train, y_train))
+    print(forest.score(X_test, y_test))
+    # print(np.sum(forest.classify(X_train) == y_train) / y_train.shape[0])
+    # print(np.sum(forest.classify(X_test) == y_test) / y_test.shape[0])
+    # for t in forest.trees:
+    #     print(np.sum(t.classify(X_test) == y_test) / y_test.shape[0])
