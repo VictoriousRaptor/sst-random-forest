@@ -17,7 +17,7 @@ parser.add_argument('--tree_count', type=int, default=300, help='Number of trees
 parser.add_argument('--tree_depth', type=int, default=64, help='Max depth of a single tree')
 parser.add_argument('--emb_dim', type=int, default=50, help='Word embedding dim')
 parser.add_argument('--runs', type=int, default=10, help='Number of forests')
-parser.add_argument('--model', type=str, default='mine', choices=['sklearn', 'mine'], help='')
+parser.add_argument('--model', type=str, default='sklearn', choices=['sklearn', 'mine'], help='Which RF implementation to use')
 
 args = parser.parse_args()
 

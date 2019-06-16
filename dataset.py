@@ -71,7 +71,9 @@ class SSTDataset():
                                     name + '.txt', header=None, encoding='utf-8', dtype=int)
             phrase_ids.append(set(np.array(tmp).squeeze()))  # 在数据集中出现的pharse id
         self.num_classes = num_classes
-        phrase_dict = [dict(), dict(), dict()]  # {id->phrase} 
+        phrase_dict = [{} for i in range(len(set_names))]  # {id->phrase} 
+        # print(phrase_dict)
+        # assert len(phrase_dict) == len(set_names)
 
         label_tmp = pd.read_csv(path_to_dataset + 'sentiment_labels.txt',
                      sep='|', dtype={'phrase ids': int, 'sentiment values': float})
