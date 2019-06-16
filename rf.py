@@ -7,6 +7,7 @@ from sklearn.metrics import confusion_matrix
 
 import dataset
 import decisiontree
+import time
 
 
 parser = argparse.ArgumentParser()
@@ -14,8 +15,9 @@ parser.add_argument('--dataset_path', type=str, default='data/dataset/', help='P
 parser.add_argument('--feature', type=str, default='tfidf', choices=['tfidf', 'vector'], help='Which kind of feature to use')
 parser.add_argument('--tree_count', type=int, default=300, help='Number of trees in the forest')
 parser.add_argument('--tree_depth', type=int, default=64, help='Max depth of a single tree')
+parser.add_argument('--emb_dim', type=int, default=50, help='Word embedding dim')
 parser.add_argument('--runs', type=int, default=10, help='Number of forests')
-parser.add_argument('--model', type=str, default='sklearn', choices=['sklearn', 'mine'], help='')
+parser.add_argument('--model', type=str, default='mine', choices=['sklearn', 'mine'], help='')
 
 args = parser.parse_args()
 
@@ -24,11 +26,11 @@ if args.model == 'mine':
     args.feature = 'vector'
 
 if args.feature == 'vector':
-    wordvec = dataset.loadGloveModel('../midterm/data/glove/glove.6B.'+ str(50) +'d.txt')
+    wordvec = dataset.loadGloveModel('../midterm/data/glove/glove.6B.'+ str(args.emb_dim) +'d.txt')
     args.weight = wordvec
 
 # In[]
-ds = dataset.SSTDataset(args.dataset_path, 2, 50, args)
+ds = dataset.SSTDataset(args.dataset_path, 2, args)
 
 if args.feature == 'vector':
     delattr(args, 'weight')
@@ -54,10 +56,13 @@ if args.model == 'sklearn':
         test_prediction = clf.predict(test_set.features)
         print(confusion_matrix(test_set.labels, test_prediction))
 elif args.model == 'mine':
-    forest = decisiontree.RandomForest(2, 10, 10)
+    forest = decisiontree.RandomForest(2, args.tree_count, args.tree_depth)
     # print(train_set.features.shape)
     # print(train_set.labels.shape)
+    start = time.time()
     forest.grow(train_set.features, train_set.labels)
+    end = time.time() - start
+    print(end)
     print(forest.score(train_set.features, train_set.labels))
     print(forest.score(test_set.features, test_set.labels))
 

@@ -1,9 +1,10 @@
-import numpy as np
-import random
 import math
+import random
+import time
+
+import numpy as np
 from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
-from numba import jit
 
 
 class Node():
@@ -27,24 +28,31 @@ class desTree():
         self.label_num = label_num
         self.v_gini = np.vectorize(self.gini)
 
-    def grow(self, features, labels):
-        self.features = np.copy(features)
+    def grow(self, samples, labels):
+        if isinstance(samples, np.ndarray):
+            self.samples = np.copy(samples)
+        else:
+            self.samples = np.copy(samples.toarray())
         self.labels = np.copy(labels)
         if self.max_features == 'log2':
             def sel_attributes():
-                # return np.random.randint(0, self.features.shape[1], size=np.ceil(np.log2(self.features.shape[1])))
-                return np.random.choice(self.features.shape[1], size=int(np.ceil(np.log2(self.features.shape[1]))), replace=False)  # 不放回选择
+                # return np.random.randint(0, self.samples.shape[1], size=np.ceil(np.log2(self.samples.shape[1])))
+                return np.random.choice(self.samples.shape[1], size=int(np.ceil(np.log2(self.samples.shape[1]))), replace=False)  # 不放回选择
+        elif self.max_features == 'sqrt':
+            def sel_attributes():
+                # return np.random.randint(0, self.samples.shape[1], size=np.ceil(np.log2(self.samples.shape[1])))
+                return np.random.choice(self.samples.shape[1], size=int(np.ceil(math.sqrt(self.samples.shape[1]))), replace=False)  # 不放回选择
         self.sel_attributes = sel_attributes
-        self.root = self.recursive_grow(0, np.arange(self.features.shape[0], dtype=np.long), self.sel_attributes())
+        self.root = self.recursive_grow(0, np.arange(self.samples.shape[0], dtype=np.long), self.sel_attributes())
         del self.labels
-        del self.features
+        del self.samples
 
-    def gini(self, cur_samples):
+    def gini(self, cur_samples_idx):
         # gini_value * |Dv| of a subset
         # counts of different classes
-        _, counts = np.unique(self.labels[cur_samples], return_counts=True)
-        counts = counts / len(cur_samples)
-        return (1 - np.sum(counts**2)) * len(cur_samples)
+        _, counts = np.unique(self.labels[cur_samples_idx], return_counts=True)
+        counts = counts / len(cur_samples_idx)
+        return (1 - np.sum(counts**2)) * len(cur_samples_idx)
 
     def gini_index(self, total_num, split):
         """[summary]
@@ -56,20 +64,20 @@ class desTree():
         """
         return np.sum([self.gini(s) for s in split]) / total_num
 
-    def all_same(self, cur_samples):
-        tmp = np.unique(self.labels[cur_samples])
+    def all_same(self, cur_samples_dix):
+        tmp = np.unique(self.labels[cur_samples_dix])
         return len(tmp) == 1, tmp[0]  # 只有一个unique的元素
-        # return np.bincount(self.labels[cur_samples]).argmax() == len(cur_samples)
+        # return np.bincount(self.labels[cur_samples]).argmax() == len(cur_samples_dix)
 
-    def split_attributes(self, cur_samples, cur_attrs):
-        size = len(cur_samples)
+    def split_attributes(self, cur_samples_idx, cur_attrs_idx):
+        size = len(cur_samples_idx)  # 当前样本数
         best_split = tuple()
         best_crit = 1 * float("inf")  # 当前最小基尼系数
         best_attribute = -1
         best_threshold = None
-        tmp_samples = self.features[cur_samples].copy()  # copy一份样本，仍然包括所有的属性列
+        tmp_samples = self.samples[cur_samples_idx].copy()  # copy一份样本，仍然包括所有的属性列
 
-        for attr in cur_attrs:
+        for attr in cur_attrs_idx:
             # order = tmp_samples.argsort(axis=attr)  
             order = tmp_samples[:, attr].argsort()  # 返回按照attr列排序的索引, 取值[0, len(tmp_samples))
             for i in range(len(order) - 1):
@@ -77,7 +85,7 @@ class desTree():
                     # 和邻居不相等
                     threshold = (tmp_samples[order[i], attr] + tmp_samples[order[i+1], attr]) / 2
                     # split = (order[:i+1], order[i+1:])  # 小于/大于阈值的序号
-                    split = (cur_samples[order[:i+1]], cur_samples[order[i+1:]])  # 对于self.features的索引
+                    split = (cur_samples_idx[order[:i+1]], cur_samples_idx[order[i+1:]])  # 对于self.samples的索引
                     crit = self.gini_index(size, split)
                     if crit < best_crit:
                         best_split = split
@@ -88,21 +96,21 @@ class desTree():
         # 阈值，(小于, 大于)
         return best_attribute, best_threshold, best_split if len(best_split) != 0 else tuple()
 
-    def recursive_grow(self, cur_depth, cur_samples, cur_attrs):
+    def recursive_grow(self, cur_depth, cur_samples_idx, cur_attrs):
         if cur_depth == self.max_depth or len(cur_attrs) == 0:
             # 深度最大，选择最多的
-            unique, count = np.unique(self.labels[cur_samples], return_counts=True)
+            unique, count = np.unique(self.labels[cur_samples_idx], return_counts=True)
             most_occur = unique[count.argmax()]
             return Node(True, -1, None, most_occur)
-        elif self.all_same(cur_samples)[0]:
+        elif self.all_same(cur_samples_idx)[0]:
             # 这个节点的全部一样
-            return Node(True, -1, None, self.all_same(cur_samples)[1])
+            return Node(True, -1, None, self.all_same(cur_samples_idx)[1])
         else:
             best_attr, thresh, split = self.split_attributes(
-                cur_samples, cur_attrs)
+                cur_samples_idx, cur_attrs)
             if len(split) == 0:
                 # 没切出来东西
-                unique, count = np.unique(self.labels[cur_samples], return_counts=True)
+                unique, count = np.unique(self.labels[cur_samples_idx], return_counts=True)
                 most_occur = unique[count.argmax()]
                 return Node(True, -1, None, most_occur)
             node = Node(False, best_attr, thresh)
@@ -131,14 +139,19 @@ class RandomForest():
         self.tree_count = tree_count
         self.tree_depth = tree_depth
 
-    # @jit
+
     def grow(self, features, labels):
         # num_samples = features.shape[0]
+        # tmp = np.random.choice(features.shape[0], size=features.shape[0], replace=True)
+        # cnt = 0
         for tree in self.trees:
             # Bagging
             indice = np.random.choice(features.shape[0], size=features.shape[0], replace=True)
+            # if np.array_equiv(np.sort(tmp), np.sort(indice)):
+            #     cnt += 1
+            # tmp = indice
             tree.grow(features[indice, :], labels[indice])
-            # print(np.sum(tree.classify(features[indice, :]) == labels[indice]) / labels[indice].shape[0])
+        # print(cnt)
 
 
     def classify(self, features):
@@ -164,11 +177,11 @@ if __name__ == "__main__":
     tree.grow(X_train, y_train)
     print(np.sum(tree.classify(X_train) == y_train) / y_train.shape[0])
     print(np.sum(tree.classify(X_test) == y_test) / y_test.shape[0])
-    forest = RandomForest(3, 100, 5)
+    forest = RandomForest(3, 100, 3)
     forest.grow(X_train, y_train)
     print(forest.score(X_train, y_train))
     print(forest.score(X_test, y_test))
     # print(np.sum(forest.classify(X_train) == y_train) / y_train.shape[0])
     # print(np.sum(forest.classify(X_test) == y_test) / y_test.shape[0])
-    # for t in forest.trees:
-    #     print(np.sum(t.classify(X_test) == y_test) / y_test.shape[0])
+    for t in forest.trees:
+        print(np.sum(t.classify(X_train) == y_train) / y_train.shape[0])
