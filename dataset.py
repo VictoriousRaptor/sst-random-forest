@@ -15,7 +15,7 @@ from tfidf import *
 #%%
 def clean_data(sentence):
     # From yoonkim: https://github.com/yoonkim/CNN_sentence/blob/master/process_data.py
-    sentence = re.sub(r"[^A-Za-z0-9(),!?\'\`]", " ", sentence)
+    sentence = re.sub(r"[^A-Za-z(),!?\'\`]", " ", sentence)
     sentence = re.sub(r"\s{2,}", " ", sentence)
     return sentence.strip().lower()
 
