@@ -45,8 +45,8 @@ best = (0, 0)
 avg = [0, 0]
 if args.model == 'sklearn':
     for i in range(args.runs):
-        # clf = RandomForestClassifier(n_estimators=args.tree_count, n_jobs=-1)
         clf = RandomForestClassifier(n_estimators=args.tree_count, max_depth=args.tree_depth, n_jobs=-1, criterion='gini', max_features='log2')
+        # clf = RandomForestClassifier(n_estimators=args.tree_count, n_jobs=-1, criterion='gini', max_features='log2')
         clf.fit(train_set.features, train_set.labels)
         train_acc = clf.score(train_set.features, train_set.labels)
         test_acc = clf.score(test_set.features, test_set.labels)

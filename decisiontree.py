@@ -36,11 +36,9 @@ class desTree():
         self.labels = np.copy(labels)
         if self.max_features == 'log2':
             def sel_attributes():
-                # return np.random.randint(0, self.samples.shape[1], size=np.ceil(np.log2(self.samples.shape[1])))
                 return np.random.choice(self.samples.shape[1], size=int(np.ceil(np.log2(self.samples.shape[1]))), replace=False)  # 不放回选择
         elif self.max_features == 'sqrt':
             def sel_attributes():
-                # return np.random.randint(0, self.samples.shape[1], size=np.ceil(np.log2(self.samples.shape[1])))
                 return np.random.choice(self.samples.shape[1], size=int(np.ceil(math.sqrt(self.samples.shape[1]))), replace=False)  # 不放回选择
         self.sel_attributes = sel_attributes
         self.root = self.recursive_grow(0, np.arange(self.samples.shape[0], dtype=np.long), self.sel_attributes())
@@ -80,20 +78,18 @@ class desTree():
     def split_attributes(self, cur_samples_idx, cur_attrs_idx):
         size = len(cur_samples_idx)  # 当前样本数
         best_split = tuple()
-        best_crit = 1 * float("inf")  # 当前最小基尼系数
+        best_crit = 1 * float("inf")  # 当前最小criterion(基尼系数)
         best_attribute = -1
         best_threshold = None
         tmp_samples = self.samples[cur_samples_idx].copy()  # copy一份样本，仍然包括所有的属性列
 
         for attr in cur_attrs_idx:
-            # order = tmp_samples.argsort(axis=attr)  
             order = tmp_samples[:, attr].argsort()  # 返回按照attr列排序的索引, 取值[0, len(tmp_samples))
             for i in range(len(order) - 1):
                 if tmp_samples[order[i], attr] != tmp_samples[order[i+1], attr]:
                     # 和邻居不相等
                     threshold = (tmp_samples[order[i], attr] + tmp_samples[order[i+1], attr]) / 2
-                    # split = (order[:i+1], order[i+1:])  # 小于/大于阈值的序号
-                    split = (cur_samples_idx[order[:i+1]], cur_samples_idx[order[i+1:]])  # 对于self.samples的索引
+                    split = (cur_samples_idx[order[:i+1]], cur_samples_idx[order[i+1:]])  # 对于self.samples的索引, 小于/大于阈值的序号
                     crit = self.gini_index(size, split)
                     # crit = -self.infogain(size, split)
                     if crit < best_crit:
@@ -102,7 +98,7 @@ class desTree():
                         best_crit = crit
                         best_attribute = attr
 
-        # 阈值，(小于, 大于)
+        # 属性，阈值，(小于, 大于)
         return best_attribute, best_threshold, best_split if len(best_split) != 0 else tuple()
 
     def recursive_grow(self, cur_depth, cur_samples_idx, cur_attrs):
