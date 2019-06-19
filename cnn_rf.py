@@ -12,6 +12,7 @@ import torch.optim
 import torch.utils.data as data
 from sklearn.ensemble import RandomForestClassifier
 from torch.utils.data import DataLoader, Dataset
+import decisiontree
 
 from RCNN import RCNN
 # from RNN import myRNN, LSTMClassifier
@@ -195,15 +196,21 @@ def main():
     
     # Random Forest
     train_features, train_labels = extraction(training_iter, model, args)  # shuffled so regen labels
+    dev_features, dev_labels = extraction(validation_iter, model, args)  # shuffled so regen labels
     test_features, test_labels = extraction(testing_iter, model, args)  # shuffled so regen labels
     best = (0, 0)
     avg = [0, 0]
     for i in range(args.runs):
-        # clf = RandomForestClassifier(n_estimators=args.tree_count, n_jobs=-1)
-        clf = RandomForestClassifier(n_estimators=300, max_depth=10, n_jobs=-1, criterion='gini', max_features='auto')
+        clf = RandomForestClassifier(n_estimators=300, max_depth=10, n_jobs=-1, criterion='gini', max_features='log2')
         clf.fit(train_features, train_labels)
         train_acc = clf.score(train_features, train_labels)
         test_acc = clf.score(test_features, test_labels)
+        # forest = decisiontree.RandomForest(2, 20, 10)
+        # print(train_features.shape)
+        # start = time.time()
+        # forest.grow(np.vstack((train_features, dev_features)), np.hstack((train_labels, dev_labels)))
+        # end = time.time() - start
+        # train_acc = forest.core(test_features, test_labels)
         if test_acc > best[1]:
             best = (train_acc, test_acc)
         avg[0] += train_acc

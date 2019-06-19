@@ -4,6 +4,8 @@ import argparse
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix
+from sklearn.decomposition import PCA
+import scipy.sparse
 
 import dataset
 import decisiontree
@@ -56,9 +58,11 @@ if args.model == 'sklearn':
         test_prediction = clf.predict(test_set.features)
         print(confusion_matrix(test_set.labels, test_prediction))
 elif args.model == 'mine':
+    # pca = PCA(50)
+    # train_set.features = pca.fit_transform(train_set.features.toarray())
+    # test_set.features = pca.transform(test_set.features.toarray())
     forest = decisiontree.RandomForest(2, args.tree_count, args.tree_depth)
-    # print(train_set.features.shape)
-    # print(train_set.labels.shape)
+    print(train_set.features.shape)
     start = time.time()
     forest.grow(train_set.features, train_set.labels)
     end = time.time() - start

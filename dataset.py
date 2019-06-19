@@ -1,6 +1,7 @@
 #%%
 import re
 import time
+import copy
 
 import numpy as np
 import pandas as pd
@@ -10,7 +11,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import normalize
 from torch.utils.data import Dataset, TensorDataset
 
-from tfidf import *
 
 #%%
 def clean_data(sentence):
@@ -64,7 +64,7 @@ class SSTDataset():
             What kind of feature to use, 'vector' or 'tfidf', by default 'vector'
 
         """
-        set_names = ['train', 'dev', 'test']
+        set_names = ['train', 'dev', 'test']  
         phrase_ids = []
         for name in set_names:
             tmp = pd.read_csv(path_to_dataset + 'phrase_ids.' +
@@ -72,8 +72,6 @@ class SSTDataset():
             phrase_ids.append(set(np.array(tmp).squeeze()))  # 在数据集中出现的pharse id
         self.num_classes = num_classes
         phrase_dict = [{} for i in range(len(set_names))]  # {id->phrase} 
-        # print(phrase_dict)
-        # assert len(phrase_dict) == len(set_names)
 
         label_tmp = pd.read_csv(path_to_dataset + 'sentiment_labels.txt',
                      sep='|', dtype={'phrase ids': int, 'sentiment values': float})
@@ -87,9 +85,10 @@ class SSTDataset():
                         phrase = clean_data(phrase)  # 预处理
                         phrase_dict[j][int(phrase_id)] = phrase
         
-        # print(len(phrase_dict))
+
+        phrase_dict[0].update(phrase_dict[1])  # 验证集用于训练！
+        print(len(phrase_dict[0]))
         self.sets = [holder(len(i)) for i in phrase_dict]
-        # print(len(self.sets))
 
         if args.feature == 'vector':
             for i, s in enumerate(self.sets):
@@ -119,7 +118,7 @@ class SSTDataset():
             # self.tfv = TfidfVectorizer(stop_words='english', min_df=3, max_df=0.99) 
             # self.tfv = TfidfVectorizer(stop_words='english', max_df=0.99) 
             nltk = ["i", "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your", "yours", "yourself", "yourselves", "he", "him", "his", "himself", "she", "her", "hers", "herself", "it", "its", "itself", "they", "them", "their", "theirs", "themselves", "what", "which", "who", "whom", "this", "that", "these", "those", "am", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "having", "do", "does", "did", "doing", "a", "an", "the", "and", "but", "if", "or", "because", "as", "until", "while", "of", "at", "by", "for", "with", "about", "against", "between", "into", "through", "during", "before", "after", "above", "below", "to", "from", "up", "down", "in", "out", "on", "off", "over", "under", "again", "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "s", "t", "can", "will", "just", "don", "should", "now"]
-            self.tfv = TfidfVectorizer(stop_words=None, ngram_range=(1,1), norm=None, min_df=2) 
+            self.tfv = TfidfVectorizer(stop_words=None, ngram_range=(1, 1), norm=None, min_df=2) 
             # self.tfv = TfidfVectorizer(stop_words=None, ngram_range=(1,2), max_df=0.1) 
             for i, s in enumerate(self.sets):
                 for j, (idx, p) in enumerate(phrase_dict[i].items()):
@@ -127,7 +126,6 @@ class SSTDataset():
 
                 if i == 0:
                     # train
-                    # s.features = tfv.fit_transform(phrase_dict[i].values()) # TODO:不太对，这是句子每个词的tfidf
                     s.features = self.tfv.fit_transform(phrase_dict[i].values())
                 else:
                     s.features = self.tfv.transform(phrase_dict[i].values())

@@ -3,7 +3,7 @@ import random
 import time
 
 import numpy as np
-from sklearn.datasets import load_iris
+from sklearn.datasets import load_iris, load_wine
 from sklearn.model_selection import train_test_split
 
 
@@ -26,7 +26,7 @@ class desTree():
         self.max_depth = max_depth
         self.max_features = max_features
         self.label_num = label_num
-        self.v_gini = np.vectorize(self.gini)
+        # self.v_gini = np.vectorize(self.gini)
 
     def grow(self, samples, labels):
         if isinstance(samples, np.ndarray):
@@ -64,10 +64,18 @@ class desTree():
         """
         return np.sum([self.gini(s) for s in split]) / total_num
 
-    def all_same(self, cur_samples_dix):
-        tmp = np.unique(self.labels[cur_samples_dix])
+    def entropy(self, cur_samples_idx):
+        _, counts = np.unique(self.labels[cur_samples_idx], return_counts=True)
+        counts = counts / len(cur_samples_idx)
+        return -np.sum(counts*np.log2(counts))
+
+    def infogain(self, total_num, split):
+        return self.entropy(np.concatenate((split[0], split[1]))) - np.sum([self.entropy(s) * len(s) for s in split]) / total_num
+
+    def all_same(self, cur_samples_idx):
+        tmp = np.unique(self.labels[cur_samples_idx])
         return len(tmp) == 1, tmp[0]  # 只有一个unique的元素
-        # return np.bincount(self.labels[cur_samples]).argmax() == len(cur_samples_dix)
+        # return np.bincount(self.labels[cur_samples]).argmax() == len(cur_samples_idx)
 
     def split_attributes(self, cur_samples_idx, cur_attrs_idx):
         size = len(cur_samples_idx)  # 当前样本数
@@ -87,6 +95,7 @@ class desTree():
                     # split = (order[:i+1], order[i+1:])  # 小于/大于阈值的序号
                     split = (cur_samples_idx[order[:i+1]], cur_samples_idx[order[i+1:]])  # 对于self.samples的索引
                     crit = self.gini_index(size, split)
+                    # crit = -self.infogain(size, split)
                     if crit < best_crit:
                         best_split = split
                         best_threshold = threshold
@@ -98,7 +107,7 @@ class desTree():
 
     def recursive_grow(self, cur_depth, cur_samples_idx, cur_attrs):
         if cur_depth == self.max_depth or len(cur_attrs) == 0:
-            # 深度最大，选择最多的
+            # 深度最大，或没有属性可供切分，选择最多的
             unique, count = np.unique(self.labels[cur_samples_idx], return_counts=True)
             most_occur = unique[count.argmax()]
             return Node(True, -1, None, most_occur)
@@ -119,17 +128,17 @@ class desTree():
             return node
 
     def classify(self, sample):
-        return [self.recursive_find(self.root, s) for s in sample]
+        return [self.recursive_classify(self.root, s) for s in sample]
 
-    def recursive_find(self, node: Node, sample):
+    def recursive_classify(self, node: Node, sample):
         if node.is_leaf:
             return node.label
         else:
             # 划分属性值
             if sample[node.attr] > node.threshold:
-                return self.recursive_find(node.children[1], sample)
+                return self.recursive_classify(node.children[1], sample)
             else:
-                return self.recursive_find(node.children[0], sample)
+                return self.recursive_classify(node.children[0], sample)
 
 
 class RandomForest():
@@ -140,31 +149,31 @@ class RandomForest():
         self.tree_depth = tree_depth
 
 
-    def grow(self, features, labels):
-        # num_samples = features.shape[0]
-        # tmp = np.random.choice(features.shape[0], size=features.shape[0], replace=True)
+    def grow(self, samples, labels):
+        # num_samples = samples.shape[0]
+        # tmp = np.random.choice(samples.shape[0], size=samples.shape[0], replace=True)
         # cnt = 0
         for tree in self.trees:
             # Bagging
-            indice = np.random.choice(features.shape[0], size=features.shape[0], replace=True)
+            indice = np.random.choice(samples.shape[0], size=samples.shape[0], replace=True)
             # if np.array_equiv(np.sort(tmp), np.sort(indice)):
             #     cnt += 1
             # tmp = indice
-            tree.grow(features[indice, :], labels[indice])
+            tree.grow(samples[indice, :], labels[indice])
         # print(cnt)
 
 
-    def classify(self, features):
-        candidates = np.array([tree.classify(features) for tree in self.trees])
+    def classify(self, samples):
+        candidates = np.array([tree.classify(samples) for tree in self.trees])
         result = np.zeros(candidates.shape[1], dtype=np.long)
         for i in range(candidates.shape[1]):
             vote = candidates[:, i]
-            unique, counts = np.unique(vote, return_counts=True)
-            result[i] = unique[counts.argmax()]
+            unique, counts = np.unique(vote, return_counts=True)  # 计票
+            result[i] = unique[counts.argmax()]  # 返回票数最多的类别
         return result
 
-    def score(self, features, labels):
-        result = self.classify(features)
+    def score(self, samples, labels):
+        result = self.classify(samples)
         return np.sum(result == labels) / labels.shape[0]
 
         
@@ -183,5 +192,16 @@ if __name__ == "__main__":
     print(forest.score(X_test, y_test))
     # print(np.sum(forest.classify(X_train) == y_train) / y_train.shape[0])
     # print(np.sum(forest.classify(X_test) == y_test) / y_test.shape[0])
-    for t in forest.trees:
-        print(np.sum(t.classify(X_train) == y_train) / y_train.shape[0])
+    # for t in forest.trees:
+    #     print(np.sum(t.classify(X_train) == y_train) / y_train.shape[0])
+
+    wine = load_wine(True)
+    X_train, X_test, y_train, y_test = train_test_split(wine[0], wine[1], test_size=0.33, random_state=7)
+    tree = desTree(5, 3)
+    tree.grow(X_train, y_train)
+    print(np.sum(tree.classify(X_train) == y_train) / y_train.shape[0])
+    print(np.sum(tree.classify(X_test) == y_test) / y_test.shape[0])
+    forest = RandomForest(3, 50, 4)
+    forest.grow(X_train, y_train)
+    print(forest.score(X_train, y_train))
+    print(forest.score(X_test, y_test))
