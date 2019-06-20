@@ -24,8 +24,8 @@ parser.add_argument('--model', type=str, default='sklearn', choices=['sklearn', 
 args = parser.parse_args()
 
 # In[]
-if args.model == 'mine':
-    args.feature = 'vector'
+# if args.model == 'mine':
+#     args.feature = 'vector'
 
 if args.feature == 'vector':
     wordvec = dataset.loadGloveModel('../midterm/data/glove/glove.6B.'+ str(args.emb_dim) +'d.txt')
@@ -40,6 +40,11 @@ if args.feature == 'vector':
 train_set = ds.train_set()
 test_set = ds.test_set()
 
+# np.save('tfidf_test', test_set.features.toarray())
+# np.save('tfidf_train', train_set.features.toarray())
+# np.save('tfidf_test_label', test_set.labels)
+# np.save('tfidf_train_label', train_set.labels)
+# input()
 #%%
 best = (0, 0)
 avg = [0, 0]
@@ -62,15 +67,13 @@ elif args.model == 'mine':
     # train_set.features = pca.fit_transform(train_set.features.toarray())
     # test_set.features = pca.transform(test_set.features.toarray())
     forest = decisiontree.RandomForest(2, args.tree_count, args.tree_depth)
-    print(train_set.features.shape)
     start = time.time()
     forest.grow(train_set.features, train_set.labels)
     end = time.time() - start
     print(end)
-    print(forest.score(train_set.features, train_set.labels))
-    print(forest.score(test_set.features, test_set.labels))
+    print('{:.4f}|{:.4f}'.format(forest.score(train_set.features, train_set.labels), forest.score(test_set.features, test_set.labels)))
     for tree in forest.trees:
-        print(np.count_nonzero(tree.classify(test_set.features) == test_set.labels) / len(test_set.labels))
+        print('{:d} {:.4f}'.format(tree.depth(), tree.score(test_set.features, test_set.labels)))
 
 
 

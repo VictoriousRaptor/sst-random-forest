@@ -182,6 +182,13 @@ def main():
     train_features, train_labels = extraction(training_iter, model, args)  # shuffled so regen labels
     dev_features, dev_labels = extraction(validation_iter, model, args)  # shuffled so regen labels
     test_features, test_labels = extraction(testing_iter, model, args)  # shuffled so regen labels
+
+    # np.save('train_features', train_features)
+    # np.save('dev_features', dev_features)
+    # np.save('test_features', test_features)
+    # np.save('train_labels', train_features)
+    # np.save('dev_labels', dev_labels)
+    # np.save('test_labels', test_labels)
     best = (0, 0)
     avg = [0, 0]
     for i in range(args.runs):

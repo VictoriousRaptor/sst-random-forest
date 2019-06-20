@@ -1,13 +1,13 @@
 import math
+import multiprocessing
 import random
 import time
 
 import numpy as np
+from joblib import Parallel, delayed
 from sklearn.datasets import load_iris, load_wine
 from sklearn.model_selection import train_test_split
 
-from joblib import Parallel, delayed
-import multiprocessing
 
 class Node():
     def __init__(self, is_leaf=False, attr=-1, threshold=None, label=None):
@@ -49,20 +49,20 @@ class desTree():
                 self.samples = np.copy(samples.toarray())
             self.labels = np.copy(labels)
         else:
-            pass
             # TODO: 现有调用方式没区别的
-            # self.samples = samples
-            # self.labels = labels
+            self.samples = samples
+            self.labels = labels
 
-
+        # 负优化
         # 预先计算划分点
         # TODO：没必要每棵树都计算划分点
-        tmp = np.sort(samples, axis=1)
-        self.div = [list()] * self.samples.shape[1]
-        for j in range(self.samples.shape[1]):
-            for i in range(self.samples.shape[0]-1):
-                if tmp[i, j] != tmp[i+1, j]:
-                    self.div[j].append((tmp[i+1, j] + tmp[i, j])/2)
+        # self.sorted_samples = np.argsort(samples, axis=0)  # sorted by axis 1
+        # self.div = [list() for i in range(self.samples.shape[1])]
+        # for j in range(self.samples.shape[1]):
+        #     for i in range(self.samples.shape[0]-1):
+        #         if self.samples[self.sorted_samples[i, j], j] != self.samples[self.sorted_samples[i+1, j], j]:
+        #             self.div[j].append(((self.samples[self.sorted_samples[i, j], j] + self.samples[self.sorted_samples[i+1, j], j])/2, i+1))
+
 
         if self.max_features == 'log2':
             def sel_attributes():
@@ -71,13 +71,6 @@ class desTree():
             def sel_attributes():
                 return np.random.choice(self.samples.shape[1], size=int(np.ceil(math.sqrt(self.samples.shape[1]))), replace=False)  # 不放回选择
         self.sel_attributes = sel_attributes
-        # test
-        # tmp = self.sel_attributes()
-        # for i in range(100):
-        #     idx = self.sel_attributes()
-        #     if np.array_equiv(np.sort(tmp), np.sort(idx)):
-        #         print('err')
-        #     tmp=idx
 
         self.root = self.recursive_grow(1, np.arange(self.samples.shape[0], dtype=np.long), self.sel_attributes())
         del self.labels
@@ -119,9 +112,10 @@ class desTree():
         best_crit = 1 * float("inf")  # 当前最小criterion(基尼系数)
         best_attribute = -1
         best_threshold = None
-        tmp_samples = self.samples[cur_samples_idx]  # copy一份样本，仍然包括所有的属性列
 
-        #TODO: 没必要每次递归都进行排序二分
+        tmp_samples = self.samples[cur_samples_idx]  # copy一份样本，仍然包括所有的属性列
+        # TODO: 没必要每次递归都进行排序二分
+        # 但是实现做不到更快了
         for attr in cur_attrs_idx:
             order = tmp_samples[:, attr].argsort()  # 返回按照attr列排序的索引, 取值[0, len(tmp_samples))
             for i in range(len(order) - 1):
@@ -136,17 +130,14 @@ class desTree():
                         best_threshold = threshold
                         best_crit = crit
                         best_attribute = attr
+
+        # 负优化
         # for attr in cur_attrs_idx:
-        #     for threshold in self.div[attr]:
-        #         split = (list(), list())
-        #         # smaller = self.samples[cur_samples_idx, attr] <= threshold
-        #         # bigger = np.logical_not(smaller)
-        #         # split = (smaller, bigger)
-        #         for sample in cur_samples_idx:
-        #             if self.samples[sample, attr] <= threshold:
-        #                 split[0].append(sample)
-        #             else:
-        #                 split[1].append(sample)
+        #     for threshold, upper in self.div[attr]:
+        #         # 不是每个threshold都在当前取值范围内
+        #         smaller = np.intersect1d(self.sorted_samples[:upper, attr], cur_samples_idx, assume_unique=True)
+        #         bigger = np.setdiff1d(cur_samples_idx, smaller, assume_unique=True)
+        #         split = (smaller, bigger)
         #         crit = self.gini_index(size, split)
         #         # crit = -self.infogain(size, split)
         #         if crit < best_crit:
@@ -180,11 +171,16 @@ class desTree():
                 cur_depth+1, s, self.sel_attributes()) for s in split]
             return node
 
-    def classify(self, sample):
-        if self.root is not None:
-            return [self.recursive_classify(self.root, s) for s in sample]
+    def classify(self, samples):
+        if isinstance(samples, np.ndarray):
+            tmp = samples
         else:
-            return [0] * len(sample)
+            tmp = samples.toarray()
+        if self.root is not None:
+            return [self.recursive_classify(self.root, s) for s in tmp]
+        else:
+            print('empty tree')
+            return [0] * len(samples)
         
 
     def recursive_classify(self, node: Node, sample):
@@ -236,8 +232,18 @@ class RandomForest():
             
         self.trees = Parallel(n_jobs=-1)(delayed(__grow)(samples, labels, self.tree_depth, self.label_num) for _ in range(self.tree_count))
 
+
+        
+
     def classify(self, samples):
-        candidates = np.array([tree.classify(samples) for tree in self.trees])
+        if self.para:
+            def __classify(tree, samples):
+                return tree.classify(samples)
+
+            candidates = np.array(Parallel(n_jobs=-1)(delayed(__classify)(tree, samples) for tree in self.trees))
+        else:
+            candidates = np.array([tree.classify(samples) for tree in self.trees])
+
         result = np.zeros(candidates.shape[1], dtype=np.long)
         for i in range(candidates.shape[1]):
             vote = candidates[:, i]
@@ -251,6 +257,7 @@ class RandomForest():
 
         
 if __name__ == "__main__":
+    print('iris')
     iris = load_iris(True)
     X_train, X_test, y_train, y_test = train_test_split(iris[0], iris[1], test_size=0.33, random_state=7)
     tree = desTree(5, 3)
@@ -265,7 +272,7 @@ if __name__ == "__main__":
     # print(np.sum(forest.classify(X_test) == y_test) / y_test.shape[0])
     # for t in forest.trees:
     #     print(np.sum(t.classify(X_train) == y_train) / y_train.shape[0])
-
+    print('wine')
     wine = load_wine(True)
     X_train, X_test, y_train, y_test = train_test_split(wine[0], wine[1], test_size=0.33, random_state=7)
     tree = desTree(5, 3)
@@ -276,3 +283,5 @@ if __name__ == "__main__":
     forest.grow(X_train, y_train)
     print(forest.score(X_train, y_train))
     print(forest.score(X_test, y_test))
+    for tree in forest.trees:
+        print('{:d} {:.4f}'.format(tree.depth(), tree.score(X_test, y_test)))
