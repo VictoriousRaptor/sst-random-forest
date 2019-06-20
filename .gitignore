@@ -6,3 +6,4 @@ note.md
 report/
 C45.py
 test.py
+*.npy

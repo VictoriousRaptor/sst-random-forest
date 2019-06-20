@@ -69,6 +69,8 @@ elif args.model == 'mine':
     print(end)
     print(forest.score(train_set.features, train_set.labels))
     print(forest.score(test_set.features, test_set.labels))
+    for tree in forest.trees:
+        print(np.count_nonzero(tree.classify(test_set.features) == test_set.labels) / len(test_set.labels))
 
 
 

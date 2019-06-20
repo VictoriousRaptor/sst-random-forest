@@ -6,6 +6,8 @@ import numpy as np
 from sklearn.datasets import load_iris, load_wine
 from sklearn.model_selection import train_test_split
 
+from joblib import Parallel, delayed
+import multiprocessing
 
 class Node():
     def __init__(self, is_leaf=False, attr=-1, threshold=None, label=None):
@@ -20,7 +22,7 @@ class Node():
 
 
 class desTree():
-
+    attr_test = None
     def __init__(self, max_depth, label_num=2, max_features='log2'):
         self.root = None
         self.max_depth = max_depth
@@ -28,12 +30,40 @@ class desTree():
         self.label_num = label_num
         # self.v_gini = np.vectorize(self.gini)
 
-    def grow(self, samples, labels):
-        if isinstance(samples, np.ndarray):
-            self.samples = np.copy(samples)
+    def depth(self):
+        if self.root is None:
+            return 0
+        return self.recur_depth(1, self.root)
+    
+    def recur_depth(self, depth, node):
+        if node.is_leaf:
+            return depth
         else:
-            self.samples = np.copy(samples.toarray())
-        self.labels = np.copy(labels)
+            return max([self.recur_depth(depth+1, n) for n in node.children])
+
+    def grow(self, samples, labels, share_res=False, div=None):
+        if not share_res:
+            if isinstance(samples, np.ndarray):
+                self.samples = np.copy(samples)
+            else:
+                self.samples = np.copy(samples.toarray())
+            self.labels = np.copy(labels)
+        else:
+            pass
+            # TODO: 现有调用方式没区别的
+            # self.samples = samples
+            # self.labels = labels
+
+
+        # 预先计算划分点
+        # TODO：没必要每棵树都计算划分点
+        tmp = np.sort(samples, axis=1)
+        self.div = [list()] * self.samples.shape[1]
+        for j in range(self.samples.shape[1]):
+            for i in range(self.samples.shape[0]-1):
+                if tmp[i, j] != tmp[i+1, j]:
+                    self.div[j].append((tmp[i+1, j] + tmp[i, j])/2)
+
         if self.max_features == 'log2':
             def sel_attributes():
                 return np.random.choice(self.samples.shape[1], size=int(np.ceil(np.log2(self.samples.shape[1]))), replace=False)  # 不放回选择
@@ -41,7 +71,15 @@ class desTree():
             def sel_attributes():
                 return np.random.choice(self.samples.shape[1], size=int(np.ceil(math.sqrt(self.samples.shape[1]))), replace=False)  # 不放回选择
         self.sel_attributes = sel_attributes
-        self.root = self.recursive_grow(0, np.arange(self.samples.shape[0], dtype=np.long), self.sel_attributes())
+        # test
+        # tmp = self.sel_attributes()
+        # for i in range(100):
+        #     idx = self.sel_attributes()
+        #     if np.array_equiv(np.sort(tmp), np.sort(idx)):
+        #         print('err')
+        #     tmp=idx
+
+        self.root = self.recursive_grow(1, np.arange(self.samples.shape[0], dtype=np.long), self.sel_attributes())
         del self.labels
         del self.samples
 
@@ -81,8 +119,9 @@ class desTree():
         best_crit = 1 * float("inf")  # 当前最小criterion(基尼系数)
         best_attribute = -1
         best_threshold = None
-        tmp_samples = self.samples[cur_samples_idx].copy()  # copy一份样本，仍然包括所有的属性列
+        tmp_samples = self.samples[cur_samples_idx]  # copy一份样本，仍然包括所有的属性列
 
+        #TODO: 没必要每次递归都进行排序二分
         for attr in cur_attrs_idx:
             order = tmp_samples[:, attr].argsort()  # 返回按照attr列排序的索引, 取值[0, len(tmp_samples))
             for i in range(len(order) - 1):
@@ -97,6 +136,24 @@ class desTree():
                         best_threshold = threshold
                         best_crit = crit
                         best_attribute = attr
+        # for attr in cur_attrs_idx:
+        #     for threshold in self.div[attr]:
+        #         split = (list(), list())
+        #         # smaller = self.samples[cur_samples_idx, attr] <= threshold
+        #         # bigger = np.logical_not(smaller)
+        #         # split = (smaller, bigger)
+        #         for sample in cur_samples_idx:
+        #             if self.samples[sample, attr] <= threshold:
+        #                 split[0].append(sample)
+        #             else:
+        #                 split[1].append(sample)
+        #         crit = self.gini_index(size, split)
+        #         # crit = -self.infogain(size, split)
+        #         if crit < best_crit:
+        #             best_split = split
+        #             best_threshold = threshold
+        #             best_crit = crit
+        #             best_attribute = attr
 
         # 属性，阈值，(小于, 大于)
         return best_attribute, best_threshold, best_split if len(best_split) != 0 else tuple()
@@ -124,7 +181,11 @@ class desTree():
             return node
 
     def classify(self, sample):
-        return [self.recursive_classify(self.root, s) for s in sample]
+        if self.root is not None:
+            return [self.recursive_classify(self.root, s) for s in sample]
+        else:
+            return [0] * len(sample)
+        
 
     def recursive_classify(self, node: Node, sample):
         if node.is_leaf:
@@ -135,29 +196,45 @@ class desTree():
                 return self.recursive_classify(node.children[1], sample)
             else:
                 return self.recursive_classify(node.children[0], sample)
+    
+    def score(self, samples, labels):
+        result = self.classify(samples)
+        return np.sum(result == labels) / labels.shape[0]
+
 
 
 class RandomForest():
 
-    def __init__(self, label_num, tree_count, tree_depth):
-        self.trees = [desTree(tree_depth, label_num)] * tree_count
+    def __init__(self, label_num, tree_count, tree_depth, para=True):
+        if not para:
+            self.trees = [desTree(tree_depth, label_num) for tree in range(tree_count)]
+        self.para = para
+        self.label_num = label_num
         self.tree_count = tree_count
         self.tree_depth = tree_depth
 
-
     def grow(self, samples, labels):
-        # num_samples = samples.shape[0]
-        # tmp = np.random.choice(samples.shape[0], size=samples.shape[0], replace=True)
-        # cnt = 0
+        if self.para:
+            self.para_grow(samples, labels)
+        else:
+            self.seq_grow(samples, labels)
+
+    def seq_grow(self, samples, labels):
         for tree in self.trees:
             # Bagging
             indice = np.random.choice(samples.shape[0], size=samples.shape[0], replace=True)
-            # if np.array_equiv(np.sort(tmp), np.sort(indice)):
-            #     cnt += 1
-            # tmp = indice
             tree.grow(samples[indice, :], labels[indice])
         # print(cnt)
 
+    def para_grow(self, samples, labels):
+
+        def __grow(samples, labels, tree_depth, label_num):
+            indice = np.random.choice(samples.shape[0], size=samples.shape[0], replace=True)
+            tree = desTree(tree_depth, label_num)
+            tree.grow(samples[indice, :], labels[indice])
+            return tree
+            
+        self.trees = Parallel(n_jobs=-1)(delayed(__grow)(samples, labels, self.tree_depth, self.label_num) for _ in range(self.tree_count))
 
     def classify(self, samples):
         candidates = np.array([tree.classify(samples) for tree in self.trees])
@@ -172,8 +249,6 @@ class RandomForest():
         result = self.classify(samples)
         return np.sum(result == labels) / labels.shape[0]
 
-        
-            
         
 if __name__ == "__main__":
     iris = load_iris(True)
