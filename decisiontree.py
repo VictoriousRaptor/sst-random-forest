@@ -22,24 +22,29 @@ class Node():
 
 
 class desTree():
-    attr_test = None
     def __init__(self, max_depth, label_num=2, max_features='log2'):
         self.root = None
         self.max_depth = max_depth
         self.max_features = max_features
         self.label_num = label_num
-        # self.v_gini = np.vectorize(self.gini)
 
     def depth(self):
         if self.root is None:
             return 0
         return self.recur_depth(1, self.root)
-    
+
     def recur_depth(self, depth, node):
         if node.is_leaf:
             return depth
         else:
             return max([self.recur_depth(depth+1, n) for n in node.children])
+
+    def fit(self, X, y):
+        self.grow(X, y)
+        return self
+
+    def predict(self, X):
+        return self.classify(X)
 
     def grow(self, samples, labels, share_res=False, div=None):
         if not share_res:
@@ -63,16 +68,18 @@ class desTree():
         #         if self.samples[self.sorted_samples[i, j], j] != self.samples[self.sorted_samples[i+1, j], j]:
         #             self.div[j].append(((self.samples[self.sorted_samples[i, j], j] + self.samples[self.sorted_samples[i+1, j], j])/2, i+1))
 
-
         if self.max_features == 'log2':
             def sel_attributes():
-                return np.random.choice(self.samples.shape[1], size=int(np.ceil(np.log2(self.samples.shape[1]))), replace=False)  # 不放回选择
+                # 不放回选择
+                return np.random.choice(self.samples.shape[1], size=int(np.ceil(np.log2(self.samples.shape[1]))), replace=False)
         elif self.max_features == 'sqrt':
             def sel_attributes():
-                return np.random.choice(self.samples.shape[1], size=int(np.ceil(math.sqrt(self.samples.shape[1]))), replace=False)  # 不放回选择
+                # 不放回选择
+                return np.random.choice(self.samples.shape[1], size=int(np.ceil(math.sqrt(self.samples.shape[1]))), replace=False)
         self.sel_attributes = sel_attributes
 
-        self.root = self.recursive_grow(1, np.arange(self.samples.shape[0], dtype=np.long), self.sel_attributes())
+        self.root = self.recursive_grow(1, np.arange(
+            self.samples.shape[0], dtype=np.long), self.sel_attributes())
         del self.labels
         del self.samples
 
@@ -117,7 +124,8 @@ class desTree():
         # TODO: 没必要每次递归都进行排序二分
         # 但是实现做不到更快了
         for attr in cur_attrs_idx:
-            order = tmp_samples[:, attr].argsort()  # 返回按照attr列排序的索引, 取值[0, len(tmp_samples))
+            # 返回按照attr列排序的索引, 取值[0, len(tmp_samples))
+            order = tmp_samples[:, attr].argsort()
             for i in range(len(order) - 1):
                 if tmp_samples[order[i], attr] != tmp_samples[order[i+1], attr]:
                     # 和邻居不相等
@@ -181,7 +189,6 @@ class desTree():
         else:
             print('empty tree')
             return [0] * len(samples)
-        
 
     def recursive_classify(self, node: Node, sample):
         if node.is_leaf:
@@ -192,11 +199,10 @@ class desTree():
                 return self.recursive_classify(node.children[1], sample)
             else:
                 return self.recursive_classify(node.children[0], sample)
-    
-    def score(self, samples, labels):
-        result = self.classify(samples)
-        return np.sum(result == labels) / labels.shape[0]
 
+    def score(self, X, y):
+        result = self.classify(X)
+        return np.sum(result == y) / y.shape[0]
 
 
 class RandomForest():
@@ -204,7 +210,7 @@ class RandomForest():
     def __init__(self, label_num, tree_count, tree_depth, para=True):
         if not para:
             self.trees = [desTree(tree_depth, label_num) for tree in range(tree_count)]
-        self.para = para
+        self.para = para  # parallel
         self.label_num = label_num
         self.tree_count = tree_count
         self.tree_depth = tree_depth
@@ -225,24 +231,25 @@ class RandomForest():
     def para_grow(self, samples, labels):
 
         def __grow(samples, labels, tree_depth, label_num):
-            indice = np.random.choice(samples.shape[0], size=samples.shape[0], replace=True)
+            indice = np.random.choice(
+                samples.shape[0], size=samples.shape[0], replace=True)
             tree = desTree(tree_depth, label_num)
             tree.grow(samples[indice, :], labels[indice])
             return tree
-            
-        self.trees = Parallel(n_jobs=-1)(delayed(__grow)(samples, labels, self.tree_depth, self.label_num) for _ in range(self.tree_count))
 
-
-        
+        self.trees = Parallel(n_jobs=-1)(delayed(__grow)(samples, labels,
+                                                         self.tree_depth, self.label_num) for _ in range(self.tree_count))
 
     def classify(self, samples):
         if self.para:
             def __classify(tree, samples):
                 return tree.classify(samples)
 
-            candidates = np.array(Parallel(n_jobs=-1)(delayed(__classify)(tree, samples) for tree in self.trees))
+            candidates = np.array(
+                Parallel(n_jobs=-1)(delayed(__classify)(tree, samples) for tree in self.trees))
         else:
-            candidates = np.array([tree.classify(samples) for tree in self.trees])
+            candidates = np.array([tree.classify(samples)
+                                   for tree in self.trees])
 
         result = np.zeros(candidates.shape[1], dtype=np.long)
         for i in range(candidates.shape[1]):
@@ -255,8 +262,9 @@ class RandomForest():
         result = self.classify(samples)
         return np.sum(result == labels) / labels.shape[0]
 
-        
+
 if __name__ == "__main__":
+    # check_estimator(desTree)
     print('iris')
     iris = load_iris(True)
     X_train, X_test, y_train, y_test = train_test_split(iris[0], iris[1], test_size=0.33, random_state=7)
@@ -274,7 +282,8 @@ if __name__ == "__main__":
     #     print(np.sum(t.classify(X_train) == y_train) / y_train.shape[0])
     print('wine')
     wine = load_wine(True)
-    X_train, X_test, y_train, y_test = train_test_split(wine[0], wine[1], test_size=0.33, random_state=7)
+    X_train, X_test, y_train, y_test = train_test_split(
+        wine[0], wine[1], test_size=0.33, random_state=7)
     tree = desTree(5, 3)
     tree.grow(X_train, y_train)
     print(np.sum(tree.classify(X_train) == y_train) / y_train.shape[0])
@@ -285,3 +294,4 @@ if __name__ == "__main__":
     print(forest.score(X_test, y_test))
     for tree in forest.trees:
         print('{:d} {:.4f}'.format(tree.depth(), tree.score(X_test, y_test)))
+

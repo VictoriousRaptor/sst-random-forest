@@ -105,9 +105,7 @@ class SSTDataset():
                         except KeyError:
                             missing_count += 1
 
-                    # self.phrase_vec.append(np.array(tmp1, dtype=np.long))  # 包含句子中每个词的glove index
                     features.append(np.average(np.array(args.weight.iloc[tmp1, :]), axis=0))
-                    # features.append(np.average(np.array([args.weight.iloc[j, :] for j in tmp1]), axis=0))
                     s.labels[i] = get_class(label_tmp[idx], self.num_classes) # pos i 的句子的label
                     
                 s.features = np.array(features)
