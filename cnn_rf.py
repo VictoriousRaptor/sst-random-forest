@@ -186,9 +186,10 @@ def main():
     # np.save('train_features', train_features)
     # np.save('dev_features', dev_features)
     # np.save('test_features', test_features)
-    # np.save('train_labels', train_features)
+    # np.save('train_labels', train_labels)
     # np.save('dev_labels', dev_labels)
     # np.save('test_labels', test_labels)
+    # input()
     best = (0, 0)
     avg = [0, 0]
     for i in range(args.runs):

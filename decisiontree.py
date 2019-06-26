@@ -91,13 +91,6 @@ class desTree():
         return (1 - np.sum(counts**2)) * len(cur_samples_idx)
 
     def gini_index(self, total_num, split):
-        """[summary]
-
-        Parameters
-        ----------
-        split : list(ndarray)
-            a list of disjoint subsets of data
-        """
         return np.sum([self.gini(s) for s in split]) / total_num
 
     def entropy(self, cur_samples_idx):
@@ -294,4 +287,5 @@ if __name__ == "__main__":
     print(forest.score(X_test, y_test))
     for tree in forest.trees:
         print('{:d} {:.4f}'.format(tree.depth(), tree.score(X_test, y_test)))
+    forest.trees[0].depth()
 
